@@ -21,10 +21,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     const CardSearchScreen(),
   ];
 
+  final List<String> _pageTitles = [
+    'Meus Decks',
+    'Minha Coleção',
+    'Buscar Cartas',
+  ];
+
   void _onDestinationSelected(int index) {
     setState(() {
       _selectedIndex = index;
     });
+    Navigator.pop(context);
   }
 
   Future<void> _logout() async {
@@ -34,49 +41,64 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Row(
-        children: [
-          NavigationRail(
-            selectedIndex: _selectedIndex,
-            onDestinationSelected: _onDestinationSelected,
-            labelType: NavigationRailLabelType.all,
-            destinations: const [
-              NavigationRailDestination(
-                icon: Icon(Icons.style_outlined),
-                selectedIcon: Icon(Icons.style),
-                label: Text('Decks'),
+      appBar: AppBar(title: Text(_pageTitles[_selectedIndex])),
+      drawer: Drawer(
+        width: 180,
+        child: ListView(
+          padding: EdgeInsets.zero,
+          children: [
+            Container(
+              width: double.infinity,
+              height: 100,
+              padding: const EdgeInsets.only(
+                bottom: 20.0,
+                left: 24.0,
+                right: 24.0,
               ),
-              NavigationRailDestination(
-                icon: Icon(Icons.collections_bookmark_outlined),
-                selectedIcon: Icon(Icons.collections_bookmark),
-                label: Text('Coleção'),
+              decoration: BoxDecoration(
+                color: const Color.fromARGB(255, 107, 69, 179),
               ),
-              NavigationRailDestination(
-                icon: Icon(Icons.search_outlined),
-                selectedIcon: Icon(Icons.search),
-                label: Text('Buscar'),
-              ),
-            ],
-            trailing: Expanded(
-              child: Padding(
-                padding: const EdgeInsets.only(bottom: 20.0),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    IconButton(
-                      icon: const Icon(Icons.logout),
-                      onPressed: _logout,
-                      tooltip: 'Sair',
+              child: SafeArea(
+                child: Align(
+                  alignment: Alignment.bottomCenter,
+                  child: Text(
+                    'Meu Grimório',
+                    style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                      color: Colors.black87,
+                      fontSize: 28,
                     ),
-                  ],
+                  ),
                 ),
               ),
             ),
-          ),
-          const VerticalDivider(thickness: 1, width: 1),
-          Expanded(child: _pages[_selectedIndex]),
-        ],
+            ListTile(
+              leading: const Icon(Icons.style_outlined),
+              title: const Text('Decks'),
+              selected: _selectedIndex == 0,
+              onTap: () => _onDestinationSelected(0),
+            ),
+            ListTile(
+              leading: const Icon(Icons.collections_bookmark_outlined),
+              title: const Text('Coleção'),
+              selected: _selectedIndex == 1,
+              onTap: () => _onDestinationSelected(1),
+            ),
+            ListTile(
+              leading: const Icon(Icons.search_outlined),
+              title: const Text('Buscar'),
+              selected: _selectedIndex == 2,
+              onTap: () => _onDestinationSelected(2),
+            ),
+            const Divider(),
+            ListTile(
+              leading: const Icon(Icons.logout),
+              title: const Text('Sair'),
+              onTap: _logout,
+            ),
+          ],
+        ),
       ),
+      body: _pages[_selectedIndex],
     );
   }
 }

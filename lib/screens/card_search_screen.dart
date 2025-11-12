@@ -7,7 +7,6 @@ class CardSearchScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Buscar Cartas (Scryfall)')),
       body: const Center(
         child: Text('Aqui ficará a busca na API da Scryfall.'),
       ),

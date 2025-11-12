@@ -7,7 +7,6 @@ class CollectionScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Minha Coleção')),
       body: const Center(
         child: Text('Aqui ficará a coleção de cartas do usuário.'),
       ),
