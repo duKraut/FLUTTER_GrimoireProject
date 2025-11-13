@@ -1,12 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_grimoire/models/deck.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_grimoire/screens/card_search_screen.dart';
 import 'package:flutter_grimoire/providers/deck_provider.dart';
 import 'package:flutter_grimoire/models/deck_card.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-class CollectionScreen extends ConsumerWidget {
-  const CollectionScreen({super.key});
+class DeckDetailScreen extends ConsumerWidget {
+  final Deck deck;
+
+  const DeckDetailScreen({super.key, required this.deck});
 
   FirebaseFirestore get _firestore => FirebaseFirestore.instance;
   String? get _userId => FirebaseAuth.instance.currentUser?.uid;
@@ -17,7 +21,9 @@ class CollectionScreen extends ConsumerWidget {
     final docRef = _firestore
         .collection('users')
         .doc(_userId!)
-        .collection('collection')
+        .collection('decks')
+        .doc(deck.id)
+        .collection('cards')
         .doc(card.id);
 
     final newQuantity = card.quantity + change;
@@ -29,17 +35,16 @@ class CollectionScreen extends ConsumerWidget {
     }
   }
 
-  Future<void> _removeCardFromCollection(
-    BuildContext context,
-    DeckCard card,
-  ) async {
+  Future<void> _removeCardFromDeck(BuildContext context, DeckCard card) async {
     if (_userId == null) return;
     if (!context.mounted) return;
 
     final docRef = _firestore
         .collection('users')
         .doc(_userId!)
-        .collection('collection')
+        .collection('decks')
+        .doc(deck.id)
+        .collection('cards')
         .doc(card.id);
 
     bool confirmDelete =
@@ -48,7 +53,7 @@ class CollectionScreen extends ConsumerWidget {
           builder: (dialogContext) => AlertDialog(
             title: const Text('Remover Carta'),
             content: Text(
-              'Tem certeza que deseja remover ${card.name} da sua coleção?',
+              'Tem certeza que deseja remover ${card.name} do deck?',
             ),
             actions: [
               TextButton(
@@ -74,16 +79,26 @@ class CollectionScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final collectionAsyncValue = ref.watch(collectionProvider);
+    final cardsAsyncValue = ref.watch(deckCardsProvider(deck.id));
 
     return Scaffold(
-      body: collectionAsyncValue.when(
+      appBar: AppBar(title: Text(deck.name)),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => CardSearchScreen(deck: deck),
+            ),
+          );
+        },
+        child: const Icon(Icons.add),
+      ),
+      body: cardsAsyncValue.when(
         data: (cards) {
           if (cards.isEmpty) {
             return const Center(
-              child: Text(
-                'Sua coleção está vazia. Use a tela "Buscar" para adicionar cartas!',
-              ),
+              child: Text('Este deck ainda não tem cartas. Adicione algumas!'),
             );
           }
           return ListView.builder(
@@ -116,7 +131,7 @@ class CollectionScreen extends ConsumerWidget {
                         Icons.delete_outline,
                         color: Theme.of(context).colorScheme.error,
                       ),
-                      onPressed: () => _removeCardFromCollection(context, card),
+                      onPressed: () => _removeCardFromDeck(context, card),
                     ),
                   ],
                 ),

@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_grimoire/providers/deck_provider.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_grimoire/models/deck.dart';
+import 'package:flutter_grimoire/providers/deck_provider.dart';
+import 'package:flutter_grimoire/screens/deck_detail_screen.dart';
 
 class DeckListScreen extends ConsumerStatefulWidget {
   const DeckListScreen({super.key});
@@ -13,124 +14,98 @@ class DeckListScreen extends ConsumerStatefulWidget {
 }
 
 class _DeckListScreenState extends ConsumerState<DeckListScreen> {
-  final _nameController = TextEditingController();
-
-  final List<String> _formats = [
-    'Commander',
+  final List<String> _formatOptions = [
     'Standard',
     'Modern',
-    'Pioneer',
-    'Pauper',
+    'Commander',
     'Legacy',
     'Vintage',
+    'Pauper',
+    'Pioneer',
   ];
 
-  @override
-  void dispose() {
-    _nameController.dispose();
-    super.dispose();
-  }
+  FirebaseFirestore get _firestore => FirebaseFirestore.instance;
+  String? get _userId => FirebaseAuth.instance.currentUser?.uid;
 
-  Future<void> _createNewDeck(String format) async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return;
-    if (_nameController.text.isEmpty) return;
+  Future<void> _showAddDeckDialog() async {
+    if (_userId == null) return;
+    if (!context.mounted) return;
 
-    try {
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .collection('decks')
-          .add({
-            'name': _nameController.text.trim(),
-            'format': format,
-            'createdAt': Timestamp.now(),
-          });
+    final nameController = TextEditingController();
+    String? selectedFormat = _formatOptions[0];
+    final formKey = GlobalKey<FormState>();
 
-      if (mounted) {
-        Navigator.of(context).pop();
-        _nameController.clear();
-      }
-    } catch (e) {
-      if (mounted) {
-        _showErrorSnackBar('Erro ao criar deck: $e');
-      }
-    }
-  }
+    final collectionRef = _firestore
+        .collection('users')
+        .doc(_userId!)
+        .collection('decks');
 
-  Future<void> _updateDeck(
-    String deckId,
-    String newName,
-    String newFormat,
-  ) async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return;
-    if (newName.isEmpty) return;
-
-    try {
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .collection('decks')
-          .doc(deckId)
-          .update({'name': newName, 'format': newFormat});
-      if (mounted) {
-        Navigator.of(context).pop();
-        _nameController.clear();
-      }
-    } catch (e) {
-      if (mounted) {
-        _showErrorSnackBar('Erro ao atualizar deck: $e');
-      }
-    }
-  }
-
-  Future<void> _deleteDeck(String deckId) async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return;
-
-    try {
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .collection('decks')
-          .doc(deckId)
-          .delete();
-    } catch (e) {
-      if (mounted) {
-        _showErrorSnackBar('Erro ao excluir deck: $e');
-      }
-    }
-  }
-
-  void _showCreateDeckDialog() {
-    _nameController.clear();
-    String? selectedFormat = _formats.first;
-
-    showDialog(
+    await showDialog(
       context: context,
-      builder: (context) {
+      builder: (dialogContext) {
         return StatefulBuilder(
           builder: (context, setDialogState) {
             return AlertDialog(
-              title: const Text('Novo Deck'),
-              content: _buildDeckForm(setDialogState, (newValue) {
-                setDialogState(() {
-                  selectedFormat = newValue;
-                });
-              }, selectedFormat),
+              title: const Text('Adicionar Novo Deck'),
+              content: Form(
+                key: formKey,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextFormField(
+                      controller: nameController,
+                      decoration: const InputDecoration(
+                        labelText: 'Nome do Deck',
+                      ),
+                      validator: (value) {
+                        if (value == null || value.trim().isEmpty) {
+                          return 'Por favor, insira um nome';
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    DropdownButtonFormField<String>(
+                      value: selectedFormat,
+                      decoration: const InputDecoration(labelText: 'Formato'),
+                      items: _formatOptions.map((String format) {
+                        return DropdownMenuItem<String>(
+                          value: format,
+                          child: Text(format),
+                        );
+                      }).toList(),
+                      onChanged: (newValue) {
+                        setDialogState(() {
+                          selectedFormat = newValue;
+                        });
+                      },
+                      validator: (value) {
+                        if (value == null) {
+                          return 'Por favor, selecione um formato';
+                        }
+                        return null;
+                      },
+                    ),
+                  ],
+                ),
+              ),
               actions: [
                 TextButton(
-                  onPressed: () => Navigator.of(context).pop(),
+                  onPressed: () => Navigator.pop(dialogContext),
                   child: const Text('Cancelar'),
                 ),
                 FilledButton(
-                  onPressed: () {
-                    if (selectedFormat != null) {
-                      _createNewDeck(selectedFormat!);
+                  onPressed: () async {
+                    if (formKey.currentState!.validate()) {
+                      await collectionRef.add({
+                        'name': nameController.text.trim(),
+                        'format': selectedFormat,
+                        'createdAt': FieldValue.serverTimestamp(),
+                      });
+                      if (dialogContext.mounted) Navigator.pop(dialogContext);
                     }
                   },
-                  child: const Text('Criar'),
+                  child: const Text('Adicionar'),
                 ),
               ],
             );
@@ -140,35 +115,82 @@ class _DeckListScreenState extends ConsumerState<DeckListScreen> {
     );
   }
 
-  void _showEditDeckDialog(Deck deck) {
-    _nameController.text = deck.name;
-    String? selectedFormat = deck.format;
+  Future<void> _showEditDeckDialog(Deck deck) async {
+    if (_userId == null) return;
+    if (!context.mounted) return;
 
-    showDialog(
+    final nameController = TextEditingController(text: deck.name);
+    String? selectedFormat = deck.format;
+    final formKey = GlobalKey<FormState>();
+
+    final docRef = _firestore
+        .collection('users')
+        .doc(_userId!)
+        .collection('decks')
+        .doc(deck.id);
+
+    await showDialog(
       context: context,
-      builder: (context) {
+      builder: (dialogContext) {
         return StatefulBuilder(
           builder: (context, setDialogState) {
             return AlertDialog(
               title: const Text('Editar Deck'),
-              content: _buildDeckForm(setDialogState, (newValue) {
-                setDialogState(() {
-                  selectedFormat = newValue;
-                });
-              }, selectedFormat),
+              content: Form(
+                key: formKey,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextFormField(
+                      controller: nameController,
+                      decoration: const InputDecoration(
+                        labelText: 'Nome do Deck',
+                      ),
+                      validator: (value) {
+                        if (value == null || value.trim().isEmpty) {
+                          return 'Por favor, insira um nome';
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    DropdownButtonFormField<String>(
+                      value: selectedFormat,
+                      decoration: const InputDecoration(labelText: 'Formato'),
+                      items: _formatOptions.map((String format) {
+                        return DropdownMenuItem<String>(
+                          value: format,
+                          child: Text(format),
+                        );
+                      }).toList(),
+                      onChanged: (newValue) {
+                        setDialogState(() {
+                          selectedFormat = newValue;
+                        });
+                      },
+                      validator: (value) {
+                        if (value == null) {
+                          return 'Por favor, selecione um formato';
+                        }
+                        return null;
+                      },
+                    ),
+                  ],
+                ),
+              ),
               actions: [
                 TextButton(
-                  onPressed: () => Navigator.of(context).pop(),
+                  onPressed: () => Navigator.pop(dialogContext),
                   child: const Text('Cancelar'),
                 ),
                 FilledButton(
-                  onPressed: () {
-                    if (selectedFormat != null) {
-                      _updateDeck(
-                        deck.id,
-                        _nameController.text.trim(),
-                        selectedFormat!,
-                      );
+                  onPressed: () async {
+                    if (formKey.currentState!.validate()) {
+                      await docRef.update({
+                        'name': nameController.text.trim(),
+                        'format': selectedFormat,
+                      });
+                      if (dialogContext.mounted) Navigator.pop(dialogContext);
                     }
                   },
                   child: const Text('Salvar'),
@@ -181,75 +203,44 @@ class _DeckListScreenState extends ConsumerState<DeckListScreen> {
     );
   }
 
-  void _showDeleteDialog(String deckId, String deckName) {
-    showDialog(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text('Excluir Deck'),
-          content: Text(
-            'Tem certeza que deseja excluir o deck "$deckName"?\nEsta ação não pode ser desfeita.',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Cancelar'),
+  Future<void> _deleteDeck(String deckId) async {
+    if (_userId == null) return;
+    if (!context.mounted) return;
+
+    final docRef = _firestore
+        .collection('users')
+        .doc(_userId!)
+        .collection('decks')
+        .doc(deckId);
+
+    bool confirmDelete =
+        await showDialog(
+          context: context,
+          builder: (dialogContext) => AlertDialog(
+            title: const Text('Excluir Deck'),
+            content: const Text(
+              'Tem certeza que deseja excluir este deck? Esta ação não pode ser desfeita.',
             ),
-            FilledButton(
-              style: FilledButton.styleFrom(
-                backgroundColor: Theme.of(context).colorScheme.error,
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext, false),
+                child: const Text('Cancelar'),
               ),
-              onPressed: () {
-                _deleteDeck(deckId);
-                Navigator.of(context).pop();
-              },
-              child: const Text('Excluir'),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  Widget _buildDeckForm(
-    void Function(void Function()) setDialogState,
-    void Function(String?) onChanged,
-    String? selectedFormat,
-  ) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        TextField(
-          controller: _nameController,
-          decoration: const InputDecoration(
-            labelText: 'Nome do Deck',
-            border: OutlineInputBorder(),
+              FilledButton(
+                onPressed: () => Navigator.pop(dialogContext, true),
+                style: FilledButton.styleFrom(
+                  backgroundColor: Theme.of(context).colorScheme.error,
+                ),
+                child: const Text('Excluir'),
+              ),
+            ],
           ),
-          autofocus: true,
-        ),
-        const SizedBox(height: 16),
-        DropdownButtonFormField<String>(
-          value: selectedFormat,
-          decoration: const InputDecoration(
-            labelText: 'Formato',
-            border: OutlineInputBorder(),
-          ),
-          items: _formats.map((String format) {
-            return DropdownMenuItem<String>(value: format, child: Text(format));
-          }).toList(),
-          onChanged: onChanged,
-        ),
-      ],
-    );
-  }
+        ) ??
+        false;
 
-  void _showErrorSnackBar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: Theme.of(context).colorScheme.error,
-      ),
-    );
+    if (confirmDelete) {
+      await docRef.delete();
+    }
   }
 
   @override
@@ -258,7 +249,7 @@ class _DeckListScreenState extends ConsumerState<DeckListScreen> {
 
     return Scaffold(
       floatingActionButton: FloatingActionButton(
-        onPressed: _showCreateDeckDialog,
+        onPressed: _showAddDeckDialog,
         child: const Icon(Icons.add),
       ),
       body: decksAsyncValue.when(
@@ -268,14 +259,13 @@ class _DeckListScreenState extends ConsumerState<DeckListScreen> {
               child: Text('Você ainda não criou nenhum deck.'),
             );
           }
-
           return GridView.builder(
-            padding: const EdgeInsets.all(16.0),
+            padding: const EdgeInsets.all(12),
             gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-              maxCrossAxisExtent: 300,
+              maxCrossAxisExtent: 200,
               childAspectRatio: 3 / 2,
-              crossAxisSpacing: 16,
-              mainAxisSpacing: 16,
+              crossAxisSpacing: 12,
+              mainAxisSpacing: 12,
             ),
             itemCount: decks.length,
             itemBuilder: (context, index) {
@@ -284,48 +274,45 @@ class _DeckListScreenState extends ConsumerState<DeckListScreen> {
                 clipBehavior: Clip.antiAlias,
                 child: InkWell(
                   onTap: () {
-                    // TODO: Ir para a tela de detalhes do deck
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => DeckDetailScreen(deck: deck),
+                      ),
+                    );
                   },
                   child: Padding(
-                    padding: const EdgeInsets.all(16.0),
+                    padding: const EdgeInsets.all(12.0),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text(
-                          deck.name,
-                          style: Theme.of(context).textTheme.titleLarge,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              deck.name,
+                              style: Theme.of(context).textTheme.titleMedium,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            Text(
+                              deck.format,
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
+                          ],
                         ),
-                        const SizedBox(height: 4),
-                        Text(
-                          deck.format,
-                          style: Theme.of(context).textTheme.bodyMedium
-                              ?.copyWith(
-                                color: Theme.of(
-                                  context,
-                                ).colorScheme.onSurfaceVariant,
-                              ),
-                        ),
-                        const Spacer(),
                         Row(
                           mainAxisAlignment: MainAxisAlignment.end,
                           children: [
                             IconButton(
                               icon: const Icon(Icons.edit, size: 20),
-                              onPressed: () {
-                                _showEditDeckDialog(deck);
-                              },
+                              onPressed: () => _showEditDeckDialog(deck),
                             ),
                             IconButton(
-                              icon: Icon(
-                                Icons.delete_outline,
-                                size: 20,
-                                color: Theme.of(context).colorScheme.error,
-                              ),
-                              onPressed: () {
-                                _showDeleteDialog(deck.id, deck.name);
-                              },
+                              icon: const Icon(Icons.delete, size: 20),
+                              color: Theme.of(context).colorScheme.error,
+                              onPressed: () => _deleteDeck(deck.id),
                             ),
                           ],
                         ),

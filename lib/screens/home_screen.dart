@@ -27,74 +27,91 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     'Buscar Cartas',
   ];
 
-  void _onDestinationSelected(int index) {
-    setState(() {
-      _selectedIndex = index;
-    });
-    Navigator.pop(context);
-  }
-
-  Future<void> _logout() async {
-    await FirebaseAuth.instance.signOut();
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: Text(_pageTitles[_selectedIndex])),
       drawer: Drawer(
         width: 180,
-        child: ListView(
-          padding: EdgeInsets.zero,
+        child: Column(
           children: [
-            Container(
-              width: double.infinity,
-              height: 100,
-              padding: const EdgeInsets.only(
-                bottom: 20.0,
-                left: 24.0,
-                right: 24.0,
-              ),
-              decoration: BoxDecoration(
-                color: const Color.fromARGB(255, 107, 69, 179),
-              ),
-              child: SafeArea(
-                child: Align(
-                  alignment: Alignment.bottomCenter,
-                  child: Text(
-                    'Meu Grimório',
-                    style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                      color: Colors.black87,
-                      fontSize: 28,
+            Expanded(
+              child: ListView(
+                padding: EdgeInsets.zero,
+                children: [
+                  Container(
+                    height: 100,
+                    width: double.infinity,
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.primaryContainer,
+                      borderRadius: const BorderRadius.only(
+                        bottomRight: Radius.circular(20),
+                      ),
+                    ),
+                    child: SafeArea(
+                      child: Align(
+                        alignment: Alignment.bottomLeft,
+                        child: Padding(
+                          padding: const EdgeInsets.all(16.0),
+                          child: Text(
+                            'Meu Grimório',
+                            style: Theme.of(context).textTheme.headlineMedium
+                                ?.copyWith(
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.onPrimaryContainer,
+                                ),
+                          ),
+                        ),
+                      ),
                     ),
                   ),
-                ),
+                  ListTile(
+                    leading: const Icon(Icons.style),
+                    title: const Text('Meus Decks'),
+                    selected: _selectedIndex == 0,
+                    onTap: () {
+                      setState(() => _selectedIndex = 0);
+                      Navigator.pop(context);
+                    },
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.collections_bookmark),
+                    title: const Text('Minha Coleção'),
+                    selected: _selectedIndex == 1,
+                    onTap: () {
+                      setState(() => _selectedIndex = 1);
+                      Navigator.pop(context);
+                    },
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.search),
+                    title: const Text('Buscar Cartas'),
+                    selected: _selectedIndex == 2,
+                    onTap: () {
+                      setState(() => _selectedIndex = 2);
+                      Navigator.pop(context);
+                    },
+                  ),
+                ],
               ),
-            ),
-            ListTile(
-              leading: const Icon(Icons.style_outlined),
-              title: const Text('Decks'),
-              selected: _selectedIndex == 0,
-              onTap: () => _onDestinationSelected(0),
-            ),
-            ListTile(
-              leading: const Icon(Icons.collections_bookmark_outlined),
-              title: const Text('Coleção'),
-              selected: _selectedIndex == 1,
-              onTap: () => _onDestinationSelected(1),
-            ),
-            ListTile(
-              leading: const Icon(Icons.search_outlined),
-              title: const Text('Buscar'),
-              selected: _selectedIndex == 2,
-              onTap: () => _onDestinationSelected(2),
             ),
             const Divider(),
             ListTile(
-              leading: const Icon(Icons.logout),
-              title: const Text('Sair'),
-              onTap: _logout,
+              leading: Icon(
+                Icons.logout,
+                color: Theme.of(context).colorScheme.error,
+              ),
+              title: Text(
+                'Sair',
+                style: TextStyle(color: Theme.of(context).colorScheme.error),
+              ),
+              onTap: () {
+                Navigator.pop(context);
+                FirebaseAuth.instance.signOut();
+              },
             ),
+            const SizedBox(height: 8),
           ],
         ),
       ),
