@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_grimoire/providers/deck_provider.dart';
-import 'package:flutter_grimoire/models/collection_card.dart'; // <-- MUDANÇA IMPORTANTE
+import 'package:flutter_grimoire/models/collection_card.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
@@ -11,7 +11,6 @@ class CollectionScreen extends ConsumerWidget {
   FirebaseFirestore get _firestore => FirebaseFirestore.instance;
   String? get _userId => FirebaseAuth.instance.currentUser?.uid;
 
-  // Lógica atualizada para usar 'quantity'
   Future<void> _updateCardQuantity(CollectionCard card, int change) async {
     if (_userId == null) return;
 
@@ -30,7 +29,6 @@ class CollectionScreen extends ConsumerWidget {
     }
   }
 
-  // Lógica atualizada para usar 'quantity'
   Future<void> _removeCardFromCollection(
     BuildContext context,
     CollectionCard card,

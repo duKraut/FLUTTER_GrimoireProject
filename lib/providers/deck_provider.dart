@@ -3,7 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_grimoire/models/deck.dart';
 import 'package:flutter_grimoire/models/deck_card.dart';
-import 'package:flutter_grimoire/models/collection_card.dart'; // <-- IMPORTAR NOVO MODELO
+import 'package:flutter_grimoire/models/collection_card.dart';
 
 final deckListProvider = StreamProvider<List<Deck>>((ref) {
   final user = FirebaseAuth.instance.currentUser;
@@ -67,7 +67,6 @@ final collectionProvider = StreamProvider<List<CollectionCard>>((ref) {
         .toList();
   });
 });
-// ***** FIM DA ATUALIZAÇÃO *****
 
 final deckDetailProvider = StreamProvider.family<Deck, String>((ref, deckId) {
   final user = FirebaseAuth.instance.currentUser;

@@ -172,8 +172,6 @@ class _CardSearchScreenState extends ConsumerState<CardSearchScreen> {
 
         final bool isBasicLand = card.typeLine.contains('Basic Land');
 
-        // ***** LÓGICA ATUALIZADA AQUI *****
-        // Se NÃO for modo deck (ou seja, é modo coleção)
         if (!isDeckMode) {
           final currentQuantity = data?['quantity'] ?? 0;
           transaction.set(docRef, {
@@ -186,9 +184,7 @@ class _CardSearchScreenState extends ConsumerState<CardSearchScreen> {
           }, SetOptions(merge: true));
           return;
         }
-        // ***** FIM DA ATUALIZAÇÃO (MODO COLEÇÃO) *****
 
-        // ***** INÍCIO DA LÓGICA (MODO DECK) *****
         final currentMain = data?['mainboardQuantity'] ?? 0;
         final currentSide = data?['sideboardQuantity'] ?? 0;
         final totalCopies = currentMain + currentSide;
