@@ -9,8 +9,13 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 class CardSearchScreen extends ConsumerStatefulWidget {
   final Deck? deck;
+  final bool isSearchingCommander;
 
-  const CardSearchScreen({super.key, this.deck});
+  const CardSearchScreen({
+    super.key,
+    this.deck,
+    this.isSearchingCommander = false,
+  });
 
   @override
   ConsumerState<CardSearchScreen> createState() => _CardSearchScreenState();
@@ -19,6 +24,9 @@ class CardSearchScreen extends ConsumerStatefulWidget {
 class _CardSearchScreenState extends ConsumerState<CardSearchScreen> {
   Timer? _debounce;
   final _searchController = TextEditingController();
+
+  FirebaseFirestore get _firestore => FirebaseFirestore.instance;
+  String? get _userId => FirebaseAuth.instance.currentUser?.uid;
 
   @override
   void dispose() {
@@ -37,7 +45,12 @@ class _CardSearchScreenState extends ConsumerState<CardSearchScreen> {
 
       ref.read(cardSearchIsLoadingProvider.notifier).state = true;
       final service = ref.read(scryfallServiceProvider);
-      final results = await service.searchCards(query);
+
+      final results = await service.searchCards(
+        query,
+        isCommanderSearch: widget.isSearchingCommander,
+      );
+
       if (mounted) {
         ref.read(cardSearchResultsProvider.notifier).state = results;
         ref.read(cardSearchIsLoadingProvider.notifier).state = false;
@@ -45,37 +58,85 @@ class _CardSearchScreenState extends ConsumerState<CardSearchScreen> {
     });
   }
 
+  Future<void> _showErrorSnackbar(String message) async {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(message),
+          backgroundColor: Theme.of(context).colorScheme.error,
+        ),
+      );
+    }
+  }
+
   Future<void> _addCard(ScryfallCard card) async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return;
+    if (_userId == null) return;
     if (!mounted) return;
 
-    final bool isDeckMode = widget.deck != null;
+    final isDeckMode = widget.deck != null;
+
+    if (isDeckMode && widget.isSearchingCommander) {
+      try {
+        final deckDocRef = _firestore
+            .collection('users')
+            .doc(_userId!)
+            .collection('decks')
+            .doc(widget.deck!.id);
+
+        await deckDocRef.update({
+          'commanderCardId': card.id,
+          'commanderName': card.name,
+          'commanderImageUrl': card.artCrop ?? card.imageUrlSmall,
+        });
+
+        if (mounted) {
+          Navigator.pop(context);
+        }
+      } catch (e) {
+        _showErrorSnackbar('Erro ao definir comandante: $e');
+      }
+      return;
+    }
+
     late final DocumentReference docRef;
     late final String successMessage;
 
     if (isDeckMode) {
       final deckId = widget.deck!.id;
-      docRef = FirebaseFirestore.instance
+      docRef = _firestore
           .collection('users')
-          .doc(user.uid)
+          .doc(_userId!)
           .collection('decks')
           .doc(deckId)
           .collection('cards')
           .doc(card.id);
       successMessage = '${card.name} adicionado ao deck!';
     } else {
-      docRef = FirebaseFirestore.instance
+      docRef = _firestore
           .collection('users')
-          .doc(user.uid)
+          .doc(_userId!)
           .collection('collection')
           .doc(card.id);
       successMessage = '${card.name} adicionado à coleção!';
     }
 
     try {
-      await FirebaseFirestore.instance.runTransaction((transaction) async {
+      await _firestore.runTransaction((transaction) async {
         final snapshot = await transaction.get(docRef);
+        final currentQuantity =
+            (snapshot.data() as Map<String, dynamic>?)?['quantity'] ?? 0;
+
+        if (isDeckMode) {
+          final isCommanderFormat = widget.deck!.format == 'Commander';
+          if (isCommanderFormat && currentQuantity >= 1) {
+            throw Exception(
+              'Decks Commander só podem ter 1 cópia de cada carta.',
+            );
+          }
+          if (!isCommanderFormat && currentQuantity >= 4) {
+            throw Exception('Decks só podem ter até 4 cópias de cada carta.');
+          }
+        }
 
         if (!snapshot.exists) {
           transaction.set(docRef, {
@@ -87,8 +148,7 @@ class _CardSearchScreenState extends ConsumerState<CardSearchScreen> {
             'addedAt': FieldValue.serverTimestamp(),
           });
         } else {
-          final data = snapshot.data() as Map<String, dynamic>;
-          final newQuantity = (data['quantity'] ?? 0) + 1;
+          final newQuantity = currentQuantity + 1;
           transaction.update(docRef, {'quantity': newQuantity});
         }
       });
@@ -102,14 +162,7 @@ class _CardSearchScreenState extends ConsumerState<CardSearchScreen> {
         );
       }
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Erro ao adicionar carta: $e'),
-            backgroundColor: Theme.of(context).colorScheme.error,
-          ),
-        );
-      }
+      _showErrorSnackbar(e.toString().replaceFirst("Exception: ", ""));
     }
   }
 
@@ -119,10 +172,15 @@ class _CardSearchScreenState extends ConsumerState<CardSearchScreen> {
     final isLoading = ref.watch(cardSearchIsLoadingProvider);
     final bool isDeckMode = widget.deck != null;
 
+    String appBarTitle = 'Buscar Cartas';
+    if (isDeckMode) {
+      appBarTitle = widget.isSearchingCommander
+          ? 'Selecionar Comandante'
+          : 'Adicionar a: ${widget.deck!.name}';
+    }
+
     return Scaffold(
-      appBar: isDeckMode
-          ? AppBar(title: Text('Adicionar a: ${widget.deck!.name}'))
-          : null,
+      appBar: isDeckMode ? AppBar(title: Text(appBarTitle)) : null,
       body: Column(
         children: [
           Padding(
@@ -131,7 +189,9 @@ class _CardSearchScreenState extends ConsumerState<CardSearchScreen> {
               controller: _searchController,
               onChanged: _onSearchChanged,
               decoration: InputDecoration(
-                labelText: 'Buscar carta...',
+                labelText: widget.isSearchingCommander
+                    ? 'Buscar comandante (ex: Urza)...'
+                    : 'Buscar carta (ex: Sol Ring)...',
                 suffixIcon: isLoading
                     ? const Padding(
                         padding: EdgeInsets.all(8.0),

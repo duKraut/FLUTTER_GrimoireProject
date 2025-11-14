@@ -62,3 +62,25 @@ final collectionProvider = StreamProvider<List<DeckCard>>((ref) {
     return snapshot.docs.map((doc) => DeckCard.fromFirestore(doc)).toList();
   });
 });
+
+// NOVO PROVIDER ADICIONADO AQUI
+final deckDetailProvider = StreamProvider.family<Deck, String>((ref, deckId) {
+  final user = FirebaseAuth.instance.currentUser;
+
+  if (user == null) {
+    throw Exception('Usuário não autenticado.');
+  }
+
+  final docRef = FirebaseFirestore.instance
+      .collection('users')
+      .doc(user.uid)
+      .collection('decks')
+      .doc(deckId);
+
+  return docRef.snapshots().map((snapshot) {
+    if (!snapshot.exists) {
+      throw Exception('Deck não encontrado.');
+    }
+    return Deck.fromFirestore(snapshot);
+  });
+});

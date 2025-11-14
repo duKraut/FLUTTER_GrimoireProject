@@ -277,7 +277,8 @@ class _DeckListScreenState extends ConsumerState<DeckListScreen> {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (context) => DeckDetailScreen(deck: deck),
+                        // ***** ALTERAÇÃO AQUI *****
+                        builder: (context) => DeckDetailScreen(deckId: deck.id),
                       ),
                     );
                   },

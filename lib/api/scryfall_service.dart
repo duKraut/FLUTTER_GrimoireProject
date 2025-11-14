@@ -11,15 +11,23 @@ class ScryfallService {
     ),
   );
 
-  Future<List<ScryfallCard>> searchCards(String query) async {
+  Future<List<ScryfallCard>> searchCards(
+    String query, {
+    bool isCommanderSearch = false,
+  }) async {
     if (query.isEmpty) {
       return [];
+    }
+
+    String searchQuery = query;
+    if (isCommanderSearch) {
+      searchQuery += ' is:commander';
     }
 
     try {
       final response = await _dio.get(
         '/cards/search',
-        queryParameters: {'q': query},
+        queryParameters: {'q': searchQuery},
       );
 
       if (response.statusCode == 200) {
