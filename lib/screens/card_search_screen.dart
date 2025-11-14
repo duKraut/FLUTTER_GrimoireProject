@@ -6,6 +6,7 @@ import 'package:flutter_grimoire/models/deck.dart';
 import 'package:flutter_grimoire/models/scryfall_card.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter_grimoire/providers/deck_provider.dart';
 
 class CardSearchScreen extends ConsumerStatefulWidget {
   final Deck? deck;
@@ -98,6 +99,50 @@ class _CardSearchScreenState extends ConsumerState<CardSearchScreen> {
       return;
     }
 
+    if (isDeckMode && widget.deck!.format != 'Commander') {
+      final sideboardCount =
+          ref.read(sideboardCountProvider(widget.deck!.id)).value ?? 0;
+
+      final String? board = await showDialog<String>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: Text('Adicionar ${card.name}'),
+          content: const Text(
+            'Adicionar esta carta ao deck principal ou ao sideboard?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, 'main'),
+              child: const Text('Deck Principal'),
+            ),
+            FilledButton(
+              onPressed: sideboardCount >= 15
+                  ? null
+                  : () => Navigator.pop(dialogContext, 'side'),
+              child: Text('Sideboard (${sideboardCount}/15)'),
+            ),
+          ],
+        ),
+      );
+
+      if (board == null) return;
+
+      if (board == 'side' && sideboardCount >= 15) {
+        _showErrorSnackbar('O seu sideboard já tem 15 cartas.');
+        return;
+      }
+
+      _addCardToBoard(card, board);
+    } else {
+      _addCardToBoard(card, 'main');
+    }
+  }
+
+  Future<void> _addCardToBoard(ScryfallCard card, String board) async {
+    if (_userId == null) return;
+    if (!mounted) return;
+
+    final isDeckMode = widget.deck != null;
     late final DocumentReference docRef;
     late final String successMessage;
 
@@ -110,7 +155,7 @@ class _CardSearchScreenState extends ConsumerState<CardSearchScreen> {
           .doc(deckId)
           .collection('cards')
           .doc(card.id);
-      successMessage = '${card.name} adicionado ao deck!';
+      successMessage = '${card.name} adicionado ao $board!';
     } else {
       docRef = _firestore
           .collection('users')
@@ -123,33 +168,62 @@ class _CardSearchScreenState extends ConsumerState<CardSearchScreen> {
     try {
       await _firestore.runTransaction((transaction) async {
         final snapshot = await transaction.get(docRef);
-        final currentQuantity =
-            (snapshot.data() as Map<String, dynamic>?)?['quantity'] ?? 0;
+        final data = snapshot.data() as Map<String, dynamic>?;
 
-        if (isDeckMode) {
-          final isCommanderFormat = widget.deck!.format == 'Commander';
-          if (isCommanderFormat && currentQuantity >= 1) {
-            throw Exception(
-              'Decks Commander só podem ter 1 cópia de cada carta.',
-            );
-          }
-          if (!isCommanderFormat && currentQuantity >= 4) {
-            throw Exception('Decks só podem ter até 4 cópias de cada carta.');
-          }
-        }
+        final bool isBasicLand = card.typeLine.contains('Basic Land');
 
-        if (!snapshot.exists) {
+        // ***** LÓGICA ATUALIZADA AQUI *****
+        // Se NÃO for modo deck (ou seja, é modo coleção)
+        if (!isDeckMode) {
+          final currentQuantity = data?['quantity'] ?? 0;
           transaction.set(docRef, {
             'name': card.name,
             'typeLine': card.typeLine,
             'imageUrlSmall': card.imageUrlSmall,
             'artCrop': card.artCrop,
-            'quantity': 1,
             'addedAt': FieldValue.serverTimestamp(),
-          });
+            'quantity': currentQuantity + 1, // Usar 'quantity'
+          }, SetOptions(merge: true));
+          return;
+        }
+        // ***** FIM DA ATUALIZAÇÃO (MODO COLEÇÃO) *****
+
+        // ***** INÍCIO DA LÓGICA (MODO DECK) *****
+        final currentMain = data?['mainboardQuantity'] ?? 0;
+        final currentSide = data?['sideboardQuantity'] ?? 0;
+        final totalCopies = currentMain + currentSide;
+
+        if (isDeckMode) {
+          final isCommanderFormat = widget.deck!.format == 'Commander';
+
+          if (!isBasicLand) {
+            if (isCommanderFormat && totalCopies >= 1) {
+              throw Exception(
+                'Decks Commander só podem ter 1 cópia de cada carta (exceto terrenos básicos).',
+              );
+            }
+            if (!isCommanderFormat && totalCopies >= 4) {
+              throw Exception(
+                'Decks só podem ter até 4 cópias de cada carta (exceto terrenos básicos).',
+              );
+            }
+          }
+        }
+
+        final updateData = {
+          'name': card.name,
+          'typeLine': card.typeLine,
+          'imageUrlSmall': card.imageUrlSmall,
+          'artCrop': card.artCrop,
+          'addedAt': FieldValue.serverTimestamp(),
+          'mainboardQuantity': board == 'main' ? currentMain + 1 : currentMain,
+          'sideboardQuantity': board == 'side' ? currentSide + 1 : currentSide,
+        };
+
+        if (!snapshot.exists) {
+          transaction.set(docRef, updateData);
         } else {
-          final newQuantity = currentQuantity + 1;
-          transaction.update(docRef, {'quantity': newQuantity});
+          transaction.update(docRef, updateData);
         }
       });
 

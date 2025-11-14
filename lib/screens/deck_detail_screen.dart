@@ -28,29 +28,13 @@ class DeckDetailScreen extends ConsumerWidget {
 
   Future<void> _updateCardQuantity(
     BuildContext context,
+    WidgetRef ref,
     Deck deck,
     DeckCard card,
+    String board,
     int change,
   ) async {
     if (_userId == null) return;
-
-    if (change > 0) {
-      final isCommanderFormat = deck.format == 'Commander';
-      if (isCommanderFormat && card.quantity >= 1) {
-        _showErrorSnackbar(
-          context,
-          'Decks Commander só podem ter 1 cópia de cada carta.',
-        );
-        return;
-      }
-      if (!isCommanderFormat && card.quantity >= 4) {
-        _showErrorSnackbar(
-          context,
-          'Decks só podem ter até 4 cópias de cada carta.',
-        );
-        return;
-      }
-    }
 
     final docRef = _firestore
         .collection('users')
@@ -60,12 +44,52 @@ class DeckDetailScreen extends ConsumerWidget {
         .collection('cards')
         .doc(card.id);
 
-    final newQuantity = card.quantity + change;
+    final currentMain = card.mainboardQuantity;
+    final currentSide = card.sideboardQuantity;
+    final totalCopies = currentMain + currentSide;
 
-    if (newQuantity <= 0) {
+    if (change > 0) {
+      final bool isBasicLand = card.typeLine.contains('Basic Land');
+      if (!isBasicLand) {
+        if (deck.format == 'Commander' && totalCopies >= 1) {
+          _showErrorSnackbar(
+            context,
+            'Decks Commander só podem ter 1 cópia de cada carta (exceto terrenos básicos).',
+          );
+          return;
+        }
+        if (deck.format != 'Commander' && totalCopies >= 4) {
+          _showErrorSnackbar(
+            context,
+            'Decks só podem ter até 4 cópias de cada carta (exceto terrenos básicos).',
+          );
+          return;
+        }
+      }
+
+      if (board == 'side') {
+        final sideboardCount =
+            ref.read(sideboardCountProvider(deck.id)).value ?? 0;
+        if (sideboardCount + change > 15) {
+          _showErrorSnackbar(
+            context,
+            'O sideboard não pode ter mais de 15 cartas.',
+          );
+          return;
+        }
+      }
+    }
+
+    final newMain = board == 'main' ? currentMain + change : currentMain;
+    final newSide = board == 'side' ? currentSide + change : currentSide;
+
+    if (newMain <= 0 && newSide <= 0) {
       await docRef.delete();
     } else {
-      await docRef.update({'quantity': newQuantity});
+      await docRef.update({
+        'mainboardQuantity': newMain < 0 ? 0 : newMain,
+        'sideboardQuantity': newSide < 0 ? 0 : newSide,
+      });
     }
   }
 
@@ -73,6 +97,7 @@ class DeckDetailScreen extends ConsumerWidget {
     BuildContext context,
     Deck deck,
     DeckCard card,
+    String board,
   ) async {
     if (_userId == null) return;
     if (!context.mounted) return;
@@ -85,33 +110,19 @@ class DeckDetailScreen extends ConsumerWidget {
         .collection('cards')
         .doc(card.id);
 
-    bool confirmDelete =
-        await showDialog(
-          context: context,
-          builder: (dialogContext) => AlertDialog(
-            title: const Text('Remover Carta'),
-            content: Text(
-              'Tem certeza que deseja remover ${card.name} do deck?',
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(dialogContext, false),
-                child: const Text('Cancelar'),
-              ),
-              FilledButton(
-                onPressed: () => Navigator.pop(dialogContext, true),
-                style: FilledButton.styleFrom(
-                  backgroundColor: Theme.of(context).colorScheme.error,
-                ),
-                child: const Text('Remover'),
-              ),
-            ],
-          ),
-        ) ??
-        false;
+    final currentMain = card.mainboardQuantity;
+    final currentSide = card.sideboardQuantity;
 
-    if (confirmDelete && context.mounted) {
+    final newMain = board == 'main' ? 0 : currentMain;
+    final newSide = board == 'side' ? 0 : currentSide;
+
+    if (newMain == 0 && newSide == 0) {
       await docRef.delete();
+    } else {
+      await docRef.update({
+        'mainboardQuantity': newMain,
+        'sideboardQuantity': newSide,
+      });
     }
   }
 
@@ -208,57 +219,168 @@ class DeckDetailScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildCardList(BuildContext context, WidgetRef ref, Deck deck) {
-    final cardsAsyncValue = ref.watch(deckCardsProvider(deck.id));
-    return cardsAsyncValue.when(
-      data: (cards) {
-        if (cards.isEmpty) {
-          return const Center(
-            child: Text('Este deck ainda não tem cartas. Adicione algumas!'),
-          );
-        }
-        return ListView.builder(
-          itemCount: cards.length,
-          itemBuilder: (context, index) {
-            final card = cards[index];
-            return ListTile(
-              leading: card.imageUrlSmall != null
-                  ? Image.network(card.imageUrlSmall!)
-                  : const Icon(Icons.image),
-              title: Text(card.name),
-              subtitle: Text(card.typeLine),
-              trailing: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  IconButton(
-                    icon: const Icon(Icons.remove_circle_outline),
-                    onPressed: () =>
-                        _updateCardQuantity(context, deck, card, -1),
-                  ),
-                  Text(
-                    card.quantity.toString(),
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.add_circle_outline),
-                    onPressed: () =>
-                        _updateCardQuantity(context, deck, card, 1),
-                  ),
-                  IconButton(
-                    icon: Icon(
-                      Icons.delete_outline,
-                      color: Theme.of(context).colorScheme.error,
-                    ),
-                    onPressed: () => _removeCardFromDeck(context, deck, card),
-                  ),
-                ],
+  Widget _buildCardList(
+    BuildContext context,
+    WidgetRef ref,
+    Deck deck,
+    List<DeckCard> cards,
+    String board,
+  ) {
+    return ListView.builder(
+      itemCount: cards.length,
+      itemBuilder: (context, index) {
+        final card = cards[index];
+        final quantity = board == 'main'
+            ? card.mainboardQuantity
+            : card.sideboardQuantity;
+
+        return ListTile(
+          leading: card.imageUrlSmall != null
+              ? Image.network(card.imageUrlSmall!)
+              : const Icon(Icons.image),
+          title: Text(card.name),
+          subtitle: Text(card.typeLine),
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              IconButton(
+                icon: const Icon(Icons.remove_circle_outline),
+                onPressed: () =>
+                    _updateCardQuantity(context, ref, deck, card, board, -1),
               ),
-            );
-          },
+              Text(
+                quantity.toString(),
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+              IconButton(
+                icon: const Icon(Icons.add_circle_outline),
+                onPressed: () =>
+                    _updateCardQuantity(context, ref, deck, card, board, 1),
+              ),
+              IconButton(
+                icon: Icon(
+                  Icons.delete_outline,
+                  color: Theme.of(context).colorScheme.error,
+                ),
+                onPressed: () =>
+                    _removeCardFromDeck(context, deck, card, board),
+              ),
+            ],
+          ),
         );
       },
-      loading: () => const Center(child: CircularProgressIndicator()),
-      error: (error, stack) => Center(child: Text('Ocorreu um erro: $error')),
+    );
+  }
+
+  Widget _buildCommanderDeck(BuildContext context, WidgetRef ref, Deck deck) {
+    final bool hasCommander = deck.commanderCardId != null;
+
+    return Column(
+      children: [
+        if (hasCommander) _buildCommanderHeader(context, deck),
+        Expanded(
+          child: (hasCommander)
+              ? ref
+                    .watch(deckCardsProvider(deck.id))
+                    .when(
+                      data: (cards) {
+                        final mainboardCards = cards
+                            .where((c) => c.mainboardQuantity > 0)
+                            .toList();
+                        if (mainboardCards.isEmpty) {
+                          return const Center(
+                            child: Text(
+                              'Este deck ainda não tem cartas. Adicione algumas!',
+                            ),
+                          );
+                        }
+                        return _buildCardList(
+                          context,
+                          ref,
+                          deck,
+                          mainboardCards,
+                          'main',
+                        );
+                      },
+                      loading: () =>
+                          const Center(child: CircularProgressIndicator()),
+                      error: (error, stack) =>
+                          Center(child: Text('Ocorreu um erro: $error')),
+                    )
+              : _buildAddCommanderButton(context, deck),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildStandardDeck(BuildContext context, WidgetRef ref, Deck deck) {
+    final allCardsAsync = ref.watch(deckCardsProvider(deck.id));
+    final sideboardCountAsync = ref.watch(sideboardCountProvider(deck.id));
+
+    return DefaultTabController(
+      length: 2,
+      child: Column(
+        children: [
+          TabBar(
+            tabs: [
+              const Tab(text: 'Deck Principal'),
+              Tab(
+                child: sideboardCountAsync.when(
+                  data: (count) => Text('Sideboard ($count/15)'),
+                  loading: () => const Text('Sideboard (../15)'),
+                  error: (e, s) => const Text('Sideboard'),
+                ),
+              ),
+            ],
+          ),
+          Expanded(
+            child: allCardsAsync.when(
+              data: (cards) {
+                final mainboardCards = cards
+                    .where((c) => c.mainboardQuantity > 0)
+                    .toList();
+                final sideboardCards = cards
+                    .where((c) => c.sideboardQuantity > 0)
+                    .toList();
+
+                return TabBarView(
+                  children: [
+                    mainboardCards.isEmpty
+                        ? const Center(
+                            child: Text(
+                              'O deck principal está vazio. Adicione cartas!',
+                            ),
+                          )
+                        : _buildCardList(
+                            context,
+                            ref,
+                            deck,
+                            mainboardCards,
+                            'main',
+                          ),
+                    sideboardCards.isEmpty
+                        ? const Center(
+                            child: Text(
+                              'O sideboard está vazio. Adicione cartas!',
+                            ),
+                          )
+                        : _buildCardList(
+                            context,
+                            ref,
+                            deck,
+                            sideboardCards,
+                            'side',
+                          ),
+                  ],
+                );
+              },
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error: (error, stack) =>
+                  Center(child: Text('Ocorreu um erro: $error')),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -280,18 +402,9 @@ class DeckDetailScreen extends ConsumerWidget {
                       _navigateSearch(context, deck, isCommander: false),
                   child: const Icon(Icons.add),
                 ),
-          body: Column(
-            children: [
-              if (isCommanderFormat && hasCommander)
-                _buildCommanderHeader(context, deck),
-
-              Expanded(
-                child: (isCommanderFormat && !hasCommander)
-                    ? _buildAddCommanderButton(context, deck)
-                    : _buildCardList(context, ref, deck),
-              ),
-            ],
-          ),
+          body: isCommanderFormat
+              ? _buildCommanderDeck(context, ref, deck)
+              : _buildStandardDeck(context, ref, deck),
         );
       },
       loading: () => Scaffold(

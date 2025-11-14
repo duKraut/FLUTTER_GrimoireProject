@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_grimoire/models/deck.dart';
 import 'package:flutter_grimoire/models/deck_card.dart';
+import 'package:flutter_grimoire/models/collection_card.dart'; // <-- IMPORTAR NOVO MODELO
 
 final deckListProvider = StreamProvider<List<Deck>>((ref) {
   final user = FirebaseAuth.instance.currentUser;
@@ -45,7 +46,9 @@ final deckCardsProvider = StreamProvider.family<List<DeckCard>, String>((
   });
 });
 
-final collectionProvider = StreamProvider<List<DeckCard>>((ref) {
+// ***** LÓGICA ATUALIZADA AQUI *****
+// Agora retorna <List<CollectionCard>> e usa CollectionCard.fromFirestore
+final collectionProvider = StreamProvider<List<CollectionCard>>((ref) {
   final user = FirebaseAuth.instance.currentUser;
 
   if (user == null) {
@@ -59,11 +62,13 @@ final collectionProvider = StreamProvider<List<DeckCard>>((ref) {
       .orderBy('name');
 
   return collectionRef.snapshots().map((snapshot) {
-    return snapshot.docs.map((doc) => DeckCard.fromFirestore(doc)).toList();
+    return snapshot.docs
+        .map((doc) => CollectionCard.fromFirestore(doc))
+        .toList();
   });
 });
+// ***** FIM DA ATUALIZAÇÃO *****
 
-// NOVO PROVIDER ADICIONADO AQUI
 final deckDetailProvider = StreamProvider.family<Deck, String>((ref, deckId) {
   final user = FirebaseAuth.instance.currentUser;
 
@@ -82,5 +87,30 @@ final deckDetailProvider = StreamProvider.family<Deck, String>((ref, deckId) {
       throw Exception('Deck não encontrado.');
     }
     return Deck.fromFirestore(snapshot);
+  });
+});
+
+final sideboardCountProvider = StreamProvider.family<int, String>((
+  ref,
+  deckId,
+) {
+  final user = FirebaseAuth.instance.currentUser;
+  if (user == null) {
+    return Stream.value(0);
+  }
+
+  final collectionRef = FirebaseFirestore.instance
+      .collection('users')
+      .doc(user.uid)
+      .collection('decks')
+      .doc(deckId)
+      .collection('cards');
+
+  return collectionRef.snapshots().map((snapshot) {
+    int total = 0;
+    for (var doc in snapshot.docs) {
+      total += (doc.data()['sideboardQuantity'] ?? 0) as int;
+    }
+    return total;
   });
 });

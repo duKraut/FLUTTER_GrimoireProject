@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_grimoire/providers/deck_provider.dart';
-import 'package:flutter_grimoire/models/deck_card.dart';
+import 'package:flutter_grimoire/models/collection_card.dart'; // <-- MUDANÇA IMPORTANTE
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
@@ -11,7 +11,8 @@ class CollectionScreen extends ConsumerWidget {
   FirebaseFirestore get _firestore => FirebaseFirestore.instance;
   String? get _userId => FirebaseAuth.instance.currentUser?.uid;
 
-  Future<void> _updateCardQuantity(DeckCard card, int change) async {
+  // Lógica atualizada para usar 'quantity'
+  Future<void> _updateCardQuantity(CollectionCard card, int change) async {
     if (_userId == null) return;
 
     final docRef = _firestore
@@ -29,9 +30,10 @@ class CollectionScreen extends ConsumerWidget {
     }
   }
 
+  // Lógica atualizada para usar 'quantity'
   Future<void> _removeCardFromCollection(
     BuildContext context,
-    DeckCard card,
+    CollectionCard card,
   ) async {
     if (_userId == null) return;
     if (!context.mounted) return;
@@ -74,6 +76,7 @@ class CollectionScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // Agora usa o 'collectionProvider'
     final collectionAsyncValue = ref.watch(collectionProvider);
 
     return Scaffold(
@@ -104,6 +107,7 @@ class CollectionScreen extends ConsumerWidget {
                       onPressed: () => _updateCardQuantity(card, -1),
                     ),
                     Text(
+                      // Agora 'card.quantity' existe e está correto
                       card.quantity.toString(),
                       style: Theme.of(context).textTheme.titleMedium,
                     ),
