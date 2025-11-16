@@ -8,6 +8,7 @@ class Deck {
   final String? commanderCardId;
   final String? commanderName;
   final String? commanderImageUrl;
+  final List<String>? commanderColorIdentity;
 
   Deck({
     required this.id,
@@ -17,6 +18,7 @@ class Deck {
     this.commanderCardId,
     this.commanderName,
     this.commanderImageUrl,
+    this.commanderColorIdentity,
   });
 
   factory Deck.fromFirestore(DocumentSnapshot doc) {
@@ -29,6 +31,9 @@ class Deck {
       commanderCardId: data['commanderCardId'],
       commanderName: data['commanderName'],
       commanderImageUrl: data['commanderImageUrl'],
+      commanderColorIdentity: List<String>.from(
+        data['commanderColorIdentity'] ?? [],
+      ),
     );
   }
 }

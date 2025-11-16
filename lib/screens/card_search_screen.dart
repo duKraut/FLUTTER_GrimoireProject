@@ -7,6 +7,7 @@ import 'package:flutter_grimoire/models/scryfall_card.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_grimoire/providers/deck_provider.dart';
+import 'package:flutter_grimoire/widgets/show_card_image_dialog.dart';
 
 class CardSearchScreen extends ConsumerStatefulWidget {
   final Deck? deck;
@@ -50,6 +51,10 @@ class _CardSearchScreenState extends ConsumerState<CardSearchScreen> {
       final results = await service.searchCards(
         query,
         isCommanderSearch: widget.isSearchingCommander,
+        commanderIdentity:
+            (widget.deck?.format == 'Commander' && !widget.isSearchingCommander)
+            ? widget.deck?.commanderColorIdentity
+            : null,
       );
 
       if (mounted) {
@@ -70,29 +75,6 @@ class _CardSearchScreenState extends ConsumerState<CardSearchScreen> {
     }
   }
 
-  void _showCardImageDialog(BuildContext context, String? imageUrl) {
-    if (imageUrl == null) {
-      _showErrorSnackbar('Imagem não disponível.');
-      return;
-    }
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        contentPadding: EdgeInsets.zero,
-        content: InteractiveViewer(
-          child: Image.network(
-            imageUrl,
-            fit: BoxFit.contain,
-            loadingBuilder: (context, child, loadingProgress) {
-              if (loadingProgress == null) return child;
-              return const Center(child: CircularProgressIndicator());
-            },
-          ),
-        ),
-      ),
-    );
-  }
-
   Future<void> _addCard(ScryfallCard card) async {
     if (_userId == null) return;
     if (!mounted) return;
@@ -111,6 +93,7 @@ class _CardSearchScreenState extends ConsumerState<CardSearchScreen> {
           'commanderCardId': card.id,
           'commanderName': card.name,
           'commanderImageUrl': card.artCrop ?? card.imageUrlSmall,
+          'commanderColorIdentity': card.colorIdentity,
         });
 
         if (mounted) {
@@ -203,6 +186,7 @@ class _CardSearchScreenState extends ConsumerState<CardSearchScreen> {
             'imageUrlSmall': card.imageUrlSmall,
             'artCrop': card.artCrop,
             'imageUrlNormal': card.imageUrlNormal,
+            'colorIdentity': card.colorIdentity,
             'addedAt': FieldValue.serverTimestamp(),
             'quantity': currentQuantity + 1,
           }, SetOptions(merge: true));
@@ -215,6 +199,20 @@ class _CardSearchScreenState extends ConsumerState<CardSearchScreen> {
 
         if (isDeckMode) {
           final isCommanderFormat = widget.deck!.format == 'Commander';
+          final commanderIdentity = widget.deck!.commanderColorIdentity;
+
+          if (isCommanderFormat &&
+              commanderIdentity != null &&
+              commanderIdentity.isNotEmpty) {
+            bool isAllowed = card.colorIdentity.every(
+              (color) => commanderIdentity.contains(color),
+            );
+            if (!isAllowed) {
+              throw Exception(
+                'Identidade de cor da carta (${card.colorIdentity.join()}) não é compatível com a do comandante (${commanderIdentity.join()}).',
+              );
+            }
+          }
 
           if (!isBasicLand) {
             if (isCommanderFormat && totalCopies >= 1) {
@@ -236,6 +234,7 @@ class _CardSearchScreenState extends ConsumerState<CardSearchScreen> {
           'imageUrlSmall': card.imageUrlSmall,
           'artCrop': card.artCrop,
           'imageUrlNormal': card.imageUrlNormal,
+          'colorIdentity': card.colorIdentity,
           'addedAt': FieldValue.serverTimestamp(),
           'mainboardQuantity': board == 'main' ? currentMain + 1 : currentMain,
           'sideboardQuantity': board == 'side' ? currentSide + 1 : currentSide,
@@ -304,7 +303,7 @@ class _CardSearchScreenState extends ConsumerState<CardSearchScreen> {
                 final card = results[index];
                 return ListTile(
                   onTap: () =>
-                      _showCardImageDialog(context, card.imageUrlNormal),
+                      showCardImageDialog(context, card.imageUrlNormal),
                   leading: card.imageUrlSmall != null
                       ? Image.network(card.imageUrlSmall!)
                       : const Icon(Icons.image_not_supported),

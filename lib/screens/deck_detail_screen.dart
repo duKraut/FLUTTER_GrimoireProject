@@ -6,6 +6,7 @@ import 'package:flutter_grimoire/providers/deck_provider.dart';
 import 'package:flutter_grimoire/models/deck_card.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter_grimoire/widgets/show_card_image_dialog.dart';
 
 class DeckDetailScreen extends ConsumerWidget {
   final String deckId;
@@ -50,8 +51,27 @@ class DeckDetailScreen extends ConsumerWidget {
 
     if (change > 0) {
       final bool isBasicLand = card.typeLine.contains('Basic Land');
+
       if (!isBasicLand) {
-        if (deck.format == 'Commander' && totalCopies >= 1) {
+        final isCommanderFormat = deck.format == 'Commander';
+        final commanderIdentity = deck.commanderColorIdentity;
+
+        if (isCommanderFormat &&
+            commanderIdentity != null &&
+            commanderIdentity.isNotEmpty) {
+          bool isAllowed = card.colorIdentity.every(
+            (color) => commanderIdentity.contains(color),
+          );
+          if (!isAllowed) {
+            _showErrorSnackbar(
+              context,
+              'Identidade de cor da carta não é compatível com a do comandante.',
+            );
+            return;
+          }
+        }
+
+        if (isCommanderFormat && totalCopies >= 1) {
           _showErrorSnackbar(
             context,
             'Decks Commander só podem ter 1 cópia de cada carta (exceto terrenos básicos).',
@@ -166,6 +186,7 @@ class DeckDetailScreen extends ConsumerWidget {
         'commanderCardId': FieldValue.delete(),
         'commanderName': FieldValue.delete(),
         'commanderImageUrl': FieldValue.delete(),
+        'commanderColorIdentity': FieldValue.delete(),
       });
     }
   }
@@ -199,6 +220,7 @@ class DeckDetailScreen extends ConsumerWidget {
         tooltip: 'Trocar Comandante',
         onPressed: () => _removeCommander(context, deck),
       ),
+      onTap: () => showCardImageDialog(context, deck.commanderImageUrl),
     );
   }
 
@@ -235,6 +257,7 @@ class DeckDetailScreen extends ConsumerWidget {
             : card.sideboardQuantity;
 
         return ListTile(
+          onTap: () => showCardImageDialog(context, card.imageUrlNormal),
           leading: card.imageUrlSmall != null
               ? Image.network(card.imageUrlSmall!)
               : const Icon(Icons.image),
