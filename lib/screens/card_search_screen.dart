@@ -70,6 +70,29 @@ class _CardSearchScreenState extends ConsumerState<CardSearchScreen> {
     }
   }
 
+  void _showCardImageDialog(BuildContext context, String? imageUrl) {
+    if (imageUrl == null) {
+      _showErrorSnackbar('Imagem não disponível.');
+      return;
+    }
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        contentPadding: EdgeInsets.zero,
+        content: InteractiveViewer(
+          child: Image.network(
+            imageUrl,
+            fit: BoxFit.contain,
+            loadingBuilder: (context, child, loadingProgress) {
+              if (loadingProgress == null) return child;
+              return const Center(child: CircularProgressIndicator());
+            },
+          ),
+        ),
+      ),
+    );
+  }
+
   Future<void> _addCard(ScryfallCard card) async {
     if (_userId == null) return;
     if (!mounted) return;
@@ -179,8 +202,9 @@ class _CardSearchScreenState extends ConsumerState<CardSearchScreen> {
             'typeLine': card.typeLine,
             'imageUrlSmall': card.imageUrlSmall,
             'artCrop': card.artCrop,
+            'imageUrlNormal': card.imageUrlNormal,
             'addedAt': FieldValue.serverTimestamp(),
-            'quantity': currentQuantity + 1, // Usar 'quantity'
+            'quantity': currentQuantity + 1,
           }, SetOptions(merge: true));
           return;
         }
@@ -211,6 +235,7 @@ class _CardSearchScreenState extends ConsumerState<CardSearchScreen> {
           'typeLine': card.typeLine,
           'imageUrlSmall': card.imageUrlSmall,
           'artCrop': card.artCrop,
+          'imageUrlNormal': card.imageUrlNormal,
           'addedAt': FieldValue.serverTimestamp(),
           'mainboardQuantity': board == 'main' ? currentMain + 1 : currentMain,
           'sideboardQuantity': board == 'side' ? currentSide + 1 : currentSide,
@@ -278,6 +303,8 @@ class _CardSearchScreenState extends ConsumerState<CardSearchScreen> {
               itemBuilder: (context, index) {
                 final card = results[index];
                 return ListTile(
+                  onTap: () =>
+                      _showCardImageDialog(context, card.imageUrlNormal),
                   leading: card.imageUrlSmall != null
                       ? Image.network(card.imageUrlSmall!)
                       : const Icon(Icons.image_not_supported),

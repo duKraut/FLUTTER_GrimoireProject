@@ -6,6 +6,7 @@ class DeckCard {
   final String typeLine;
   final String? imageUrlSmall;
   final String? artCrop;
+  final String? imageUrlNormal;
   final int mainboardQuantity;
   final int sideboardQuantity;
 
@@ -15,6 +16,7 @@ class DeckCard {
     required this.typeLine,
     this.imageUrlSmall,
     this.artCrop,
+    this.imageUrlNormal,
     required this.mainboardQuantity,
     required this.sideboardQuantity,
   });
@@ -27,6 +29,7 @@ class DeckCard {
       typeLine: data['typeLine'] ?? 'N/D',
       imageUrlSmall: data['imageUrlSmall'],
       artCrop: data['artCrop'],
+      imageUrlNormal: data['imageUrlNormal'],
       mainboardQuantity: data['mainboardQuantity'] ?? 0,
       sideboardQuantity: data['sideboardQuantity'] ?? 0,
     );

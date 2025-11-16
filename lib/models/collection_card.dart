@@ -6,6 +6,7 @@ class CollectionCard {
   final String typeLine;
   final String? imageUrlSmall;
   final String? artCrop;
+  final String? imageUrlNormal;
   final int quantity;
 
   CollectionCard({
@@ -14,6 +15,7 @@ class CollectionCard {
     required this.typeLine,
     this.imageUrlSmall,
     this.artCrop,
+    this.imageUrlNormal,
     required this.quantity,
   });
 
@@ -25,6 +27,7 @@ class CollectionCard {
       typeLine: data['typeLine'] ?? 'N/D',
       imageUrlSmall: data['imageUrlSmall'],
       artCrop: data['artCrop'],
+      imageUrlNormal: data['imageUrlNormal'],
       quantity: data['quantity'] ?? 0,
     );
   }
