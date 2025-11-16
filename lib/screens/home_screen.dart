@@ -32,7 +32,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     return Scaffold(
       appBar: AppBar(title: Text(_pageTitles[_selectedIndex])),
       drawer: Drawer(
-        width: 180,
+        width: 200,
         child: Column(
           children: [
             Expanded(

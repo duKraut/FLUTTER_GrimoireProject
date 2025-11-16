@@ -7,6 +7,7 @@ import 'package:flutter_grimoire/models/scryfall_card.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_grimoire/providers/deck_provider.dart';
+import 'package:flutter_grimoire/widgets/show_card_image_dialog.dart';
 
 class CardSearchScreen extends ConsumerStatefulWidget {
   final Deck? deck;
@@ -50,6 +51,10 @@ class _CardSearchScreenState extends ConsumerState<CardSearchScreen> {
       final results = await service.searchCards(
         query,
         isCommanderSearch: widget.isSearchingCommander,
+        commanderIdentity:
+            (widget.deck?.format == 'Commander' && !widget.isSearchingCommander)
+            ? widget.deck?.commanderColorIdentity
+            : null,
       );
 
       if (mounted) {
@@ -88,6 +93,7 @@ class _CardSearchScreenState extends ConsumerState<CardSearchScreen> {
           'commanderCardId': card.id,
           'commanderName': card.name,
           'commanderImageUrl': card.artCrop ?? card.imageUrlSmall,
+          'commanderColorIdentity': card.colorIdentity,
         });
 
         if (mounted) {
@@ -172,8 +178,6 @@ class _CardSearchScreenState extends ConsumerState<CardSearchScreen> {
 
         final bool isBasicLand = card.typeLine.contains('Basic Land');
 
-        // ***** LÓGICA ATUALIZADA AQUI *****
-        // Se NÃO for modo deck (ou seja, é modo coleção)
         if (!isDeckMode) {
           final currentQuantity = data?['quantity'] ?? 0;
           transaction.set(docRef, {
@@ -181,20 +185,34 @@ class _CardSearchScreenState extends ConsumerState<CardSearchScreen> {
             'typeLine': card.typeLine,
             'imageUrlSmall': card.imageUrlSmall,
             'artCrop': card.artCrop,
+            'imageUrlNormal': card.imageUrlNormal,
+            'colorIdentity': card.colorIdentity,
             'addedAt': FieldValue.serverTimestamp(),
-            'quantity': currentQuantity + 1, // Usar 'quantity'
+            'quantity': currentQuantity + 1,
           }, SetOptions(merge: true));
           return;
         }
-        // ***** FIM DA ATUALIZAÇÃO (MODO COLEÇÃO) *****
 
-        // ***** INÍCIO DA LÓGICA (MODO DECK) *****
         final currentMain = data?['mainboardQuantity'] ?? 0;
         final currentSide = data?['sideboardQuantity'] ?? 0;
         final totalCopies = currentMain + currentSide;
 
         if (isDeckMode) {
           final isCommanderFormat = widget.deck!.format == 'Commander';
+          final commanderIdentity = widget.deck!.commanderColorIdentity;
+
+          if (isCommanderFormat &&
+              commanderIdentity != null &&
+              commanderIdentity.isNotEmpty) {
+            bool isAllowed = card.colorIdentity.every(
+              (color) => commanderIdentity.contains(color),
+            );
+            if (!isAllowed) {
+              throw Exception(
+                'Identidade de cor da carta (${card.colorIdentity.join()}) não é compatível com a do comandante (${commanderIdentity.join()}).',
+              );
+            }
+          }
 
           if (!isBasicLand) {
             if (isCommanderFormat && totalCopies >= 1) {
@@ -215,6 +233,8 @@ class _CardSearchScreenState extends ConsumerState<CardSearchScreen> {
           'typeLine': card.typeLine,
           'imageUrlSmall': card.imageUrlSmall,
           'artCrop': card.artCrop,
+          'imageUrlNormal': card.imageUrlNormal,
+          'colorIdentity': card.colorIdentity,
           'addedAt': FieldValue.serverTimestamp(),
           'mainboardQuantity': board == 'main' ? currentMain + 1 : currentMain,
           'sideboardQuantity': board == 'side' ? currentSide + 1 : currentSide,
@@ -282,6 +302,8 @@ class _CardSearchScreenState extends ConsumerState<CardSearchScreen> {
               itemBuilder: (context, index) {
                 final card = results[index];
                 return ListTile(
+                  onTap: () =>
+                      showCardImageDialog(context, card.imageUrlNormal),
                   leading: card.imageUrlSmall != null
                       ? Image.network(card.imageUrlSmall!)
                       : const Icon(Icons.image_not_supported),

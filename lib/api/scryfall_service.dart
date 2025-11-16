@@ -14,6 +14,7 @@ class ScryfallService {
   Future<List<ScryfallCard>> searchCards(
     String query, {
     bool isCommanderSearch = false,
+    List<String>? commanderIdentity,
   }) async {
     if (query.isEmpty) {
       return [];
@@ -22,6 +23,11 @@ class ScryfallService {
     String searchQuery = query;
     if (isCommanderSearch) {
       searchQuery += ' is:commander';
+    }
+
+    if (commanderIdentity != null && commanderIdentity.isNotEmpty) {
+      String idString = commanderIdentity.join().toLowerCase();
+      searchQuery += ' identity<=$idString';
     }
 
     try {

@@ -16,8 +16,8 @@ class DeckListScreen extends ConsumerStatefulWidget {
 class _DeckListScreenState extends ConsumerState<DeckListScreen> {
   final List<String> _formatOptions = [
     'Standard',
-    'Modern',
     'Commander',
+    'Modern',
     'Legacy',
     'Vintage',
     'Pauper',

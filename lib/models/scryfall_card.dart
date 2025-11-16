@@ -6,6 +6,7 @@ class ScryfallCard {
   final String? imageUrlNormal;
   final String? imageUrlSmall;
   final String? artCrop;
+  final List<String> colorIdentity;
 
   ScryfallCard({
     required this.id,
@@ -15,6 +16,7 @@ class ScryfallCard {
     this.imageUrlNormal,
     this.imageUrlSmall,
     this.artCrop,
+    required this.colorIdentity,
   });
 
   factory ScryfallCard.fromScryfallJson(Map<String, dynamic> json) {
@@ -38,6 +40,7 @@ class ScryfallCard {
       imageUrlNormal: imgNormal,
       imageUrlSmall: imgSmall,
       artCrop: imgArtCrop,
+      colorIdentity: List<String>.from(json['color_identity'] ?? []),
     );
   }
 }
