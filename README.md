@@ -38,9 +38,8 @@ flutter pub get
 
 ### 3) Configurar as Ferramentas CLI do Firebase
 
-```bash
 Vamos instalar as ferramentas de linha de comando (CLI) necessárias para ligar o projeto.
-```
+
 ### Instale o Firebase CLI (via npm):
 
 ```bash
@@ -127,3 +126,104 @@ flutter run -d chrome
 ```
 
 O app irá abrir no Chrome. Pode agora criar uma nova conta (que será salva no seu banco de dados) e usar o aplicativo.
+
+
+
+## 🔌 Documentação das Rotas e APIs
+
+### API Scryfall
+
+O projeto utiliza a API Scryfall (gratuita e sem autenticação necessária) para buscar informações das cartas Magic: The Gathering.
+
+* Serviço: ScryfallService
+* Arquivo: lib/api/scryfall_service.dart
+* Classe: ScryfallService
+
+### Método Principal:
+
+```bash
+Future<List<ScryfallCard>> searchCards(
+  String query, {
+  bool isCommanderSearch = false,
+  List<String>? commanderIdentity,
+})
+```
+
+Parâmetros:
+
+* **query** (String): Termo de busca (obrigatório)
+* **isCommanderSearch** (bool): Se deve filtrar apenas cartas de comandante
+* **commanderIdentity** (List<String>?): Identificadores de cor para filtro (ex: ['U', 'B'])
+
+### Exemplos de Uso:
+
+```bash
+// Buscar cartas simples
+final cards = await scryfallService.searchCards('Black Lotus');
+
+// Buscar comandantes azuis
+final blueCommanders = await scryfallService.searchCards('', 
+  isCommanderSearch: true, 
+  commanderIdentity: ['U']
+);
+
+// Buscar cartas com filtros complexos
+final cards = await scryfallService.searchCards('type:creature power>3');
+```
+
+### Retorno:
+
+* Lista de objetos ScryfallCard contendo informações das cartas
+
+### Modelo de Dados: *ScryfallCard*
+
+Arquivo: lib/models/scryfall_card.dart
+
+```bash
+class ScryfallCard {
+  final String id;                      // ID único da carta
+  final String name;                    // Nome da carta
+  final String typeLine;                // Tipo de carta (ex: "Creature — Elf")
+  final String? oracleText;             // Texto do efeito
+  final String? imageUrlNormal;         // URL da imagem normal
+  final String? imageUrlSmall;          // URL da imagem pequena
+  final String? artCrop;                // URL da arte recortada
+  final List<String> colorIdentity;     // Identificadores de cor (W, U, B, R, G)
+}
+```
+
+### Factory Method:
+
+```bash
+factory ScryfallCard.fromScryfallJson(Map<String, dynamic> json)
+```
+Converte JSON da API Scryfall para objeto ScryfallCard. Trata automaticamente cartas com múltiplas faces.
+
+
+
+### 🔑 Providers (Gerenciamento de Estado)
+
+O projeto utiliza Riverpod para gerenciamento de estado.
+
+### AuthProvider
+
+```bash
+// Provider de autenticação
+final authProvider = StateNotifierProvider<AuthNotifier, AsyncValue<User?>>(...)
+```
+
+### ScryfallProvider
+
+```bash
+// Provider de busca de cartas
+final scryfallSearchProvider = FutureProvider<List<ScryfallCard>>((ref) async {
+  // Implementação de busca
+})
+```
+
+### DeckProvider
+
+```bash
+// Provider de gerenciamento de decks
+final deckProvider = StateNotifierProvider<DeckNotifier, List<Deck>>(...)
+```
